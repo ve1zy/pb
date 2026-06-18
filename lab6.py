@@ -64,7 +64,7 @@ class SimpleAIAgent:
 
 
 if __name__ == "__main__":
-    API_KEY = os.getenv("OPENROUTER_API_KEY", "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") 
+    API_KEY = os.getenv("OPENROUTER_API_KEY", "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") 
     
     if API_KEY == "sk-or-v1-...":
         print("Пожалуйста, установите переменную окружения OPENROUTER_API_KEY")
