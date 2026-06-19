@@ -197,7 +197,7 @@ class OpenRouterAIModel:
     def __init__(
         self,
         config: Optional[AIModelConfig] = None,
-        api_key: Optional[str] = "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",
+        api_key: Optional[str] = "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",
     ) -> None:
         self.config = config or AIModelConfig()
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
