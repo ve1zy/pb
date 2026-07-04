@@ -4,7 +4,7 @@ import requests
 from typing import List, Dict, Optional
 
 class SimpleAIAgent:
-    def __init__(self, api_key: str, model: str = "poolside/laguna-m.1:free"):
+    def __init__(self, api_key: str, model: str = "cohere/north-mini-code:free"):
         self.api_key = api_key
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"

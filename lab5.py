@@ -82,7 +82,7 @@ if __name__ == "__main__":
     prompt = "Напиши функцию на Python для быстрой сортировки (Quick Sort)."
     
     models = [
-        "poolside/laguna-m.1:free",
+        "cohere/north-mini-code:free",
         "google/gemma-4-31b-it:free",
         "openai/gpt-oss-120b:free"
     ]

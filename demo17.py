@@ -10,7 +10,7 @@ from mcp.client.stdio import stdio_client, StdioServerParameters
 
 
 os.environ["OPENROUTER_API_KEY"] = "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"
-os.environ["OPENROUTER_MODEL"] = "poolside/laguna-m.1:free"
+os.environ["OPENROUTER_MODEL"] = "cohere/north-mini-code:free"
 
 
 async def call(session, tool: str, args: dict) -> str:

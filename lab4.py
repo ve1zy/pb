@@ -3,7 +3,7 @@ import json
 
 API_KEY = ""
 
-def send_request(prompt, temperature, model="poolside/laguna-m.1:free"):
+def send_request(prompt, temperature, model="cohere/north-mini-code:free"):
     url = "https://openrouter.ai/api/v1/chat/completions"
     
     headers = {

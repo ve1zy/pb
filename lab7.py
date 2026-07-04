@@ -5,7 +5,7 @@ import requests
 from typing import List, Dict, Optional
 
 class PersistentAIAgent:
-    def __init__(self, api_key: str, model: str = "poolside/laguna-m.1:free", db_path: str = "agent_context.db"):
+    def __init__(self, api_key: str, model: str = "cohere/north-mini-code:free", db_path: str = "agent_context.db"):
         self.api_key = api_key
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"

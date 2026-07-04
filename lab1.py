@@ -16,7 +16,7 @@ def get_llm_response(user_message):
     }
     
     data = {
-        "model": "poolside/laguna-m.1:free",
+        "model": "cohere/north-mini-code:free",
         "messages": [
             {
                 "role": "user",

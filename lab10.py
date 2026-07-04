@@ -6,7 +6,7 @@ import tiktoken
 from typing import List, Dict, Optional
 
 class MultiStrategyAgent:
-    def __init__(self, api_key: str, model: str = "poolside/laguna-m.1:free", db_path: str = "agent_strategies.db"):
+    def __init__(self, api_key: str, model: str = "cohere/north-mini-code:free", db_path: str = "agent_strategies.db"):
         self.api_key = api_key
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"

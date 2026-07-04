@@ -3,7 +3,7 @@ import json
 
 API_KEY = "" 
 
-def send_request(messages, model="poolside/laguna-m.1:free", max_tokens=None, stop=None):
+def send_request(messages, model="cohere/north-mini-code:free", max_tokens=None, stop=None):
     url = "https://openrouter.ai/api/v1/chat/completions"
     
     headers = {

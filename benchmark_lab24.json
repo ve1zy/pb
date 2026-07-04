@@ -1,0 +1,379 @@
+{
+  "results": [
+    {
+      "question": "Что такое event loop в asyncio?",
+      "expectation": "Event loop — центральный механизм asyncio, регистрирует и распределяет асинхронные задачи",
+      "expected_source": "python_async.md",
+      "answer": "Event loop — это центральный исполнительный механизм в asyncio, который регистрирует и распределяет асинхронные задачи.",
+      "sources": [
+        "python_async.md / fixed"
+      ],
+      "quotes": [
+        "Event loop — центральный исполнительный механизм. Он регистрирует и распределяет асинхронные задачи."
+      ],
+      "is_unknown": false,
+      "top_k_before": 5,
+      "top_k_after": 4,
+      "elapsed": 6.17,
+      "eval": {
+        "has_sources": true,
+        "has_quotes": true,
+        "is_unknown": false,
+        "semantic_match": true,
+        "keywords_in_answer": [
+          "event loop",
+          "asyncio",
+          "распределяет",
+          "задачи"
+        ],
+        "keywords_in_quotes": [
+          "event loop",
+          "распределяет",
+          "задачи"
+        ],
+        "keywords_overlap": [
+          "распределяет",
+          "event loop",
+          "задачи"
+        ]
+      }
+    },
+    {
+      "question": "Как создать GET endpoint в FastAPI?",
+      "expectation": "Использовать декоратор @app.get() с async функцией",
+      "expected_source": "fastapi_guide.md",
+      "answer": "Чтобы создать GET endpoint в FastAPI, определите функцию, декорированную `@app.get(<путь>)`, где путь может быть корневым (\"/\") или содержать параметры маршрута. Функция должна быть асинхронной (`async def`) и возвращать данные, которые FastAPI преобразует в JSON-ответ. Например:\n\n```python\nfrom fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/\")\nasync def root():\n    return {\"message\": \"Hello World\"}\n```\n\nДля маршрутов с параметрами пути добавьте переменные в декораторе и определите их как параметры функции:\n\n```python\n@app.get(\"/items/{item_id}\")\nasync def read_item(item_id: int, q: str = None):\n    return {\"item_id\": item_id, \"q\": q}\n```\n\n**Источники:**\n- [Источник 1]: fastapi_guide.md / fixed\n\n**Цитаты:**\n- \"from fastapi import FastAPI\\napp = FastAPI()\\n\\n@app.get(\\\"/\\\")\\nasync def root():\\n    return {\\\"message\\\": \\\"Hello World\\\"}\"\n- \"@app.get(\\\"/items/{item_id}\\\")\\nasync def read_item(item_id: int, q: str = None):\\n    return {\\\"item_id\\\": item_id, \\\"q\\\": q}\"",
+      "sources": [],
+      "quotes": [
+        "from fastapi import FastAPI\\napp = FastAPI()\\n\\n@app.get(\\",
+        ")\\nasync def root():\\n    return {\\",
+        ": \\",
+        "}",
+        "@app.get(\\",
+        ")\\nasync def read_item(item_id: int, q: str = None):\\n    return {\\",
+        ": item_id, \\",
+        ": q}"
+      ],
+      "is_unknown": false,
+      "top_k_before": 5,
+      "top_k_after": 4,
+      "elapsed": 4.49,
+      "eval": {
+        "has_sources": false,
+        "has_quotes": true,
+        "is_unknown": false,
+        "semantic_match": true,
+        "keywords_in_answer": [
+          "@app.get",
+          "endpoint",
+          "FastAPI",
+          "декоратор"
+        ],
+        "keywords_in_quotes": [
+          "@app.get",
+          "FastAPI"
+        ],
+        "keywords_overlap": [
+          "FastAPI",
+          "@app.get"
+        ]
+      }
+    },
+    {
+      "question": "Какие транспорты поддерживает MCP?",
+      "expectation": "stdio для локальных процессов и HTTP+SSE для удалённых серверов",
+      "expected_source": "mcp_protocol.md",
+      "answer": "MCP поддерживает два транспорта: **stdio** (для локальных процессов) и **HTTP+SSE** (для удалённых серверов).",
+      "sources": [
+        "mcp_protocol.md / fixed"
+      ],
+      "quotes": [
+        "Поддерживаются два транспорта:",
+        "stdio: для локальных процессов",
+        "HTTP+SSE: для удалённых серверов"
+      ],
+      "is_unknown": false,
+      "top_k_before": 5,
+      "top_k_after": 1,
+      "elapsed": 3.91,
+      "eval": {
+        "has_sources": true,
+        "has_quotes": true,
+        "is_unknown": false,
+        "semantic_match": true,
+        "keywords_in_answer": [
+          "stdio",
+          "HTTP+SSE",
+          "транспорт",
+          "локальных",
+          "удалённых"
+        ],
+        "keywords_in_quotes": [
+          "stdio",
+          "HTTP+SSE",
+          "транспорт",
+          "локальных",
+          "удалённых"
+        ],
+        "keywords_overlap": [
+          "stdio",
+          "HTTP+SSE",
+          "транспорт",
+          "удалённых",
+          "локальных"
+        ]
+      }
+    },
+    {
+      "question": "Как использовать транзакции в SQLite?",
+      "expectation": "BEGIN TRANSACTION → операции → COMMIT",
+      "expected_source": "sqlite_guide.md",
+      "answer": "В SQLite транзакции начинаются с `BEGIN TRANSACTION;`, затем выполняются необходимые операторы SQL, и, наконец, изменения подтверждаются с помощью `COMMIT;`. Если что-то пойдёт не так, вы можете откатить транзакцию с помощью `ROLLBACK;`. Пример из руководства:\n\n```\nBEGIN TRANSACTION;\nINSERT INTO accounts (balance) VALUES (100);\nINSERT INTO transfers (from_id, to_id, amount) VALUES (1, 2, 50);\nCOMMIT;\n```\n\n**Источники:**\n- [Источник 1]: sqlite_guide.md / fixed\n- [Источник 2]: python_async.md / fixed\n\n**Цитаты:**\n- \"BEGIN TRANSACTION;\"\n- \"COMMIT;\"",
+      "sources": [
+        "sqlite_guide.md / fixed"
+      ],
+      "quotes": [
+        "BEGIN TRANSACTION;",
+        "COMMIT;"
+      ],
+      "is_unknown": false,
+      "top_k_before": 5,
+      "top_k_after": 3,
+      "elapsed": 7.93,
+      "eval": {
+        "has_sources": true,
+        "has_quotes": true,
+        "is_unknown": false,
+        "semantic_match": true,
+        "keywords_in_answer": [
+          "BEGIN TRANSACTION",
+          "COMMIT",
+          "транзакции"
+        ],
+        "keywords_in_quotes": [
+          "BEGIN TRANSACTION",
+          "COMMIT"
+        ],
+        "keywords_overlap": [
+          "BEGIN TRANSACTION",
+          "COMMIT"
+        ]
+      }
+    },
+    {
+      "question": "Какие типы машинного обучения существуют?",
+      "expectation": "Supervised learning, Unsupervised learning, Reinforcement learning",
+      "expected_source": "ml_basics.md",
+      "answer": "Существуют три основных типа машинного обучения: **обучение с учителем**, **обучение без учителя** и **обучение с подкреплением**.",
+      "sources": [
+        "ml_basics.md / fixed"
+      ],
+      "quotes": [
+        "Обучение с учителем: обучение на размеченных данных.",
+        "Обучение без учителя: поиск паттернов без меток.",
+        "Обучение с подкреплением: обучение через вознаграждение."
+      ],
+      "is_unknown": false,
+      "top_k_before": 5,
+      "top_k_after": 1,
+      "elapsed": 3.24,
+      "eval": {
+        "has_sources": true,
+        "has_quotes": true,
+        "is_unknown": false,
+        "semantic_match": false,
+        "keywords_in_answer": [
+          "обучения"
+        ],
+        "keywords_in_quotes": [],
+        "keywords_overlap": []
+      }
+    },
+    {
+      "question": "Что такое Dockerfile и для чего он нужен?",
+      "expectation": "Dockerfile — шаблон для сборки Docker-образа, описывает шаги установки и запуска",
+      "expected_source": "docker_basics.md",
+      "answer": "Dockerfile — это текстовый файл, содержащий последовательность инструкций, используемых для автоматической сборки Docker-образа. Он определяет базовый образ, рабочую директорию, копирует исходный код и зависимости, выполняет установки и задает команду по умолчанию для запуска приложения, что позволяет создавать изолированные и воспроизводимые контейнеры.",
+      "sources": [
+        "docker_basics.md / fixed"
+      ],
+      "quotes": [
+        "## Dockerfile",
+        "docker build -t myapp . — сборка образа из Dockerfile."
+      ],
+      "is_unknown": false,
+      "top_k_before": 5,
+      "top_k_after": 5,
+      "elapsed": 7.8,
+      "eval": {
+        "has_sources": true,
+        "has_quotes": true,
+        "is_unknown": false,
+        "semantic_match": true,
+        "keywords_in_answer": [
+          "Dockerfile",
+          "образ",
+          "сборки"
+        ],
+        "keywords_in_quotes": [
+          "Dockerfile",
+          "образ"
+        ],
+        "keywords_overlap": [
+          "Dockerfile",
+          "образ"
+        ]
+      }
+    },
+    {
+      "question": "Что такое Git Flow?",
+      "expectation": "Ветвление: main, develop, feature/*, release/*, hotfix/*",
+      "expected_source": "git_workflow.md",
+      "answer": "Git Flow — это ветвистая модель разработки, которая использует несколько специализированных веток для управления процессом разработки программного обеспечения. Основные ветки включают:\n\n- **main** — стабильная версия продукта.\n- **develop** — интеграционная ветка, содержащая код, готовый к следующему релизу.\n- **feature/*** — ветки для реализации новых функций.\n- **release/*** — ветки, используемые для подготовки нового релиза.\n- **hotfix/*** — ветки для срочного исправления критических ошибок.\n\nЭта модель помогает командам организовывать работу, защищать стабильную версию и систематически интегрировать и выпускать новые изменения.",
+      "sources": [
+        "git_workflow.md / fixed"
+      ],
+      "quotes": [
+        "main: стабильная версия. develop: интеграционная ветка. feature/*: новые функции. release/*: подготовка релиза. hotfix/*: срочные исправления."
+      ],
+      "is_unknown": false,
+      "top_k_before": 5,
+      "top_k_after": 3,
+      "elapsed": 4.73,
+      "eval": {
+        "has_sources": true,
+        "has_quotes": true,
+        "is_unknown": false,
+        "semantic_match": true,
+        "keywords_in_answer": [
+          "main",
+          "develop",
+          "feature",
+          "release",
+          "hotfix"
+        ],
+        "keywords_in_quotes": [
+          "main",
+          "develop",
+          "feature",
+          "release",
+          "hotfix"
+        ],
+        "keywords_overlap": [
+          "hotfix",
+          "main",
+          "develop",
+          "release",
+          "feature"
+        ]
+      }
+    },
+    {
+      "question": "Как использовать fixtures в pytest?",
+      "expectation": "Декоратор @pytest.fixture, передача fixture как параметр в тест",
+      "expected_source": "testing_python.md",
+      "answer": "В pytest фикстуры определяются с помощью декоратора **@pytest.fixture**. Функция, помеченная этим декоратором, возвращает данные (или объект), которые затем можно использовать в тестах путем передачи имени фикстуры в качестве параметра тестирующей функции. Например:\n\n- Определение фикстуры:\n\n  \"```\\n@pytest.fixture\\ndef sample_data():\\n    return {\\\"name\\\": \\\"Alice\\\", \\\"age\\\": 30}\\n```\"\n\n- Использование фикстуры в тесте:\n\n  \"```\\ndef test_user(sample_data):\\n    assert sample_data[\\\"name\\\"] == \\\"Alice\\\"\\n```\"\n\n**Источники:**\n- [Источник 1]: testing_python.md / fixed\n\n**Цитаты:**\n- \"@pytest.fixture def sample_data():\"\n- \"def test_user(sample_data):\"",
+      "sources": [],
+      "quotes": [
+        "@pytest.fixture def sample_data():",
+        "def test_user(sample_data):"
+      ],
+      "is_unknown": false,
+      "top_k_before": 5,
+      "top_k_after": 3,
+      "elapsed": 5.63,
+      "eval": {
+        "has_sources": false,
+        "has_quotes": true,
+        "is_unknown": false,
+        "semantic_match": true,
+        "keywords_in_answer": [
+          "@pytest.fixture",
+          "fixture",
+          "pytest",
+          "параметр"
+        ],
+        "keywords_in_quotes": [
+          "@pytest.fixture",
+          "fixture",
+          "pytest"
+        ],
+        "keywords_overlap": [
+          "pytest",
+          "fixture",
+          "@pytest.fixture"
+        ]
+      }
+    },
+    {
+      "question": "Как настроить Docker Compose с веб-сервисом и базой данных?",
+      "expectation": "version + services: web (build, ports) + db (postgres, environment)",
+      "expected_source": "docker_basics.md",
+      "answer": "Чтобы настроить Docker Compose с веб-сервисом и базой данных, создайте файл **docker-compose.yml**, который определяет два сервиса: `web` (собранный из вашего Dockerfile) и `db` (образ PostgreSQL). Пример конфигурации взят из документации по Docker:\n\n```\nversion: '3.8'\nservices:\n  web:\n    build: .\n    ports:\n      - \"8080:80\"\n  db:\n    image: postgres:15\n    environment:\n      POSTGRES_PASSWORD: secret\n```\n\nРазместите этот файл в корне вашего проекта, где находится Dockerfile, и выполните команду:\n\n```\ndocker compose up -d\n```\n\nDocker Compose автоматически соберёт образ для сервиса `web`, запустит контейнер PostgreSQL и создаст сеть, через которую они могут взаимодействовать. После запуска вы можете проверить запущенные контейнеры с помощью `docker compose ps` и остановить стек с помощью `docker compose down`.\n\n**Источники:**\n- [Источник 1]: docker_basics.md / fixed\n\n**Цитаты:**\n- \"version: '3.8'\"\"\n- \"services:\"\"\n- \"web:\"\"\n- \"build: .\"\"\n- \"ports:\"\"\n- \"db:\"\"\n- \"image: postgres:15\"\"\n- \"environment:\"\"\"\n- \"POSTGRES_PASSWORD: secret\"\"",
+      "sources": [],
+      "quotes": [
+        "version: '3.8'",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-"
+      ],
+      "is_unknown": false,
+      "top_k_before": 5,
+      "top_k_after": 5,
+      "elapsed": 11.31,
+      "eval": {
+        "has_sources": false,
+        "has_quotes": true,
+        "is_unknown": false,
+        "semantic_match": false,
+        "keywords_in_answer": [
+          "Docker Compose",
+          "services",
+          "web",
+          "db",
+          "postgres"
+        ],
+        "keywords_in_quotes": [],
+        "keywords_overlap": []
+      }
+    },
+    {
+      "question": "Какие метрики используются для оценки классификации?",
+      "expectation": "Accuracy, Precision, Recall, F1-score",
+      "expected_source": "ml_basics.md",
+      "answer": "Для оценки классификации используются метрики точности, точности/полноты и F1-скора.",
+      "sources": [
+        "ml_basics.md / fixed"
+      ],
+      "quotes": [
+        "Точность: доля правильных предсказаний.",
+        "Точность/Полнота: для несбалансированных классов.",
+        "F1-score: гармоническое среднее точности и полноты."
+      ],
+      "is_unknown": false,
+      "top_k_before": 5,
+      "top_k_after": 1,
+      "elapsed": 4.47,
+      "eval": {
+        "has_sources": true,
+        "has_quotes": true,
+        "is_unknown": false,
+        "semantic_match": true,
+        "keywords_in_answer": [
+          "F1"
+        ],
+        "keywords_in_quotes": [
+          "F1"
+        ],
+        "keywords_overlap": [
+          "F1"
+        ]
+      }
+    }
+  ]
+}
