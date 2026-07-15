@@ -1,0 +1,44 @@
+diff --git a/api.py b/api.py
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/api.py
+@@ -0,0 +1,25 @@
++import os
++import requests
++
++password = "secret123"
++api_key = "sk-1234567890abcdef"
++
++def get_user_data(user_id):
++    query = f"SELECT * FROM users WHERE id = {user_id}"
++    result = db.execute(query)
++    return result
++
++def process_data(data):
++    eval(data)
++    return data
++
++def very_long_function():
++    print("Processing...")
++    print("Step 1")
++    # TODO: optimize this
++    # FIXME: handle errors
++    for i in range(100):
++        print(i)
++        print(i*2)
++        print(i*3)
++        print(i*4)
++        print(i*5)
++        print(i*6)
++        print(i*7)
++        print(i*8)
++        print(i*9)
++        print(i*10)
+diff --git a/test_api.py b/test_api.py
+new file mode 100644
+--- /dev/null
++++ b/test_api.py
+@@ -0,0 +1,5 @@
++def test_get_user():
++    assert get_user_data(1) is not None
