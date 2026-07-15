@@ -176,45 +176,129 @@ async def call_mcp(tool_name: str, arguments: dict = None) -> str:
 
 
 # ============================================================================
-# 3. Ассистент
+# 3. LLM: локальная модель для естественных ответов
+# ============================================================================
+
+_llm_model = None
+
+def load_llm():
+    """Lazy loading LLM"""
+    global _llm_model
+    if _llm_model is not None:
+        return _llm_model
+    try:
+        from ctransformers import AutoModelForCausalLM
+        print("📦 Загрузка LLM...", flush=True)
+        _llm_model = AutoModelForCausalLM.from_pretrained(
+            "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF",
+            model_file="tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+            model_type="llama"
+        )
+        print("✅ LLM загружена", flush=True)
+        return _llm_model
+    except Exception as e:
+        print(f"⚠️ LLM недоступна: {e}", flush=True)
+        return None
+
+
+def ask_llm(prompt: str, max_tokens: int = 150) -> str:
+    """Запрос к LLM"""
+    model = load_llm()
+    if model is None:
+        return ""
+    try:
+        return model(prompt, max_new_tokens=max_tokens, temperature=0.3).strip()
+    except Exception as e:
+        return f""
+
+
+def llm_make_natural(faq_answer: str, question: str) -> str:
+    """LLM делает ответ из FAQ более естественным"""
+    prompt = f"""Ты — дружелюбный ассистент поддержки. Перефразируй ответ, сделав его естественным и кратким.
+
+Вопрос клиента: {question}
+
+Ответ из базы знаний:
+{faq_answer}
+
+Твой ответ (кратко, по-человечески, 1-2 предложения):"""
+    return ask_llm(prompt, max_tokens=100)
+
+
+def llm_summarize_ticket(ticket_text: str) -> str:
+    """LLM резюмирует тикет"""
+    prompt = f"""Сделай краткое резюме тикета поддержки (2-3 предложения).
+
+{ticket_text}
+
+Резюме:"""
+    return ask_llm(prompt, max_tokens=120)
+
+
+def llm_suggest_actions(ticket_text: str, faq_context: str) -> str:
+    """LLM предлагает действия по тикету"""
+    prompt = f"""Тикет поддержки:
+{ticket_text[:500]}
+
+Контекст из FAQ:
+{faq_context[:300]}
+
+Предложи 2-3 конкретных действия для оператора (кратко):"""
+    return ask_llm(prompt, max_tokens=120)
+
+
+# ============================================================================
+# 4. Ассистент
 # ============================================================================
 
 async def answer_with_context(query: str, index: Dict) -> str:
-    """Отвечает на вопрос с учётом тикетов пользователя"""
+    """Отвечает на вопрос с учётом тикетов пользователя + LLM"""
     query_lower = query.lower()
     
-    # Если вопрос про тикет
     if query_lower.startswith("тикет") or "t-0" in query_lower:
         import re
         match = re.search(r"T-\d+", query, re.IGNORECASE)
         if match:
             ticket = await call_mcp("get_ticket", {"ticket_id": match.group(0).upper()})
+            
+            llm_summary = llm_summarize_ticket(ticket)
+            if llm_summary and len(llm_summary) > 20:
+                return f"🎫 {ticket}\n\n🤖 **Резюме (LLM):**\n_{llm_summary}_"
             return f"🎫 {ticket}"
     
-    # Получаем открытые тикеты текущего пользователя
     user_tickets = await call_mcp("list_tickets", {"user_email": CURRENT_USER, "status": "open"})
     
-    # RAG: ищем ответ в FAQ
     results = retrieve(query, index, top_k=2)
     
     response = []
     
-    # Контекст: открытые тикеты пользователя
     if "📋 Найдено тикетов: 0" not in user_tickets and user_tickets.strip():
         response.append("💼 **Ваши открытые тикеты:**\n")
         response.append(user_tickets)
         response.append("")
     
-    # Ответ из FAQ
     if results and results[0][1] > 0.01:
-        response.append("📖 **Ответ из базы знаний:**\n")
-        for chunk, score in results:
-            if score > 0.01:
-                response.append(f"**В: {chunk['question']}** (релевантность: {score:.2f})")
-                response.append(f"О: {chunk['answer']}\n")
+        top_chunk = results[0][0]
+        top_score = results[0][1]
+        
+        response.append(f"📖 **Ответ из базы знаний:** (релевантность: {top_score:.2f})")
+        response.append(f"**В:** {top_chunk['question']}")
+        response.append(f"**О:** {top_chunk['answer']}\n")
+        
+        # LLM обогащает ответ
+        natural = llm_make_natural(top_chunk['answer'], query)
+        if natural and len(natural) > 20 and "ошибк" not in natural.lower()[:20]:
+            response.append("🤖 **Ответ ассистента (LLM):**")
+            response.append(f"_{natural}_\n")
+        
+        if len(results) > 1:
+            response.append("📌 **Другие подходящие вопросы:**")
+            for chunk, score in results[1:]:
+                if score > 0.01:
+                    response.append(f"  - {chunk['question']} ({score:.2f})")
+        
         return "\n".join(response)
     
-    # Если не нашли в FAQ — поищем в тикетах
     search_result = await call_mcp("search_tickets", {"query": query})
     if "🔍 Найдено" in search_result:
         response.append("🔍 **Найдено в тикетах:**\n")
@@ -265,11 +349,12 @@ async def main():
             
             if user_input.lower() == "/help":
                 print("\n📖 Команды:")
-                print("  /help      - эта справка")
-                print("  /faq       - показать все вопросы FAQ")
-                print("  /tickets   - мои открытые тикеты")
-                print("  /ticket T-001 - посмотреть тикет по ID")
-                print("  <вопрос>   - задать вопрос (RAG + контекст)")
+                print("  /help          - эта справка")
+                print("  /faq           - показать все вопросы FAQ")
+                print("  /tickets       - мои открытые тикеты")
+                print("  /ticket T-001  - посмотреть тикет + LLM-резюме")
+                print("  /analyze T-001 - анализ тикета + рекомендации (LLM)")
+                print("  <вопрос>       - задать вопрос (RAG + LLM + контекст)")
                 print("\nПримеры:")
                 print("  - Почему не работает авторизация?")
                 print("  - Как оплатить подписку?")
@@ -296,8 +381,34 @@ async def main():
                     ticket_id = parts[1].upper()
                     ticket = await call_mcp("get_ticket", {"ticket_id": ticket_id})
                     print(f"\n{ticket}\n")
+                    
+                    # LLM резюме
+                    summary = llm_summarize_ticket(ticket)
+                    if summary and len(summary) > 20:
+                        print(f"🤖 **Резюме (LLM):**\n_{summary}_\n")
                 else:
                     print("❌ Укажите ID тикета: /ticket T-001")
+                continue
+            
+            if user_input.lower().startswith("/analyze"):
+                import re
+                parts = user_input.split()
+                if len(parts) >= 2:
+                    ticket_id = parts[1].upper()
+                    ticket = await call_mcp("get_ticket", {"ticket_id": ticket_id})
+                    
+                    # Получаем контекст из FAQ
+                    results = retrieve(ticket, index, top_k=1)
+                    faq_context = results[0][0]['answer'] if results else ""
+                    
+                    print(f"\n{ticket}\n")
+                    
+                    # LLM анализ + действия
+                    actions = llm_suggest_actions(ticket, faq_context)
+                    if actions and len(actions) > 20:
+                        print(f"🎯 **Рекомендуемые действия (LLM):**\n{actions}\n")
+                else:
+                    print("❌ Использование: /analyze T-001")
                 continue
             
             # Обычный вопрос
