@@ -1,13 +1,13 @@
 """
-Лабораторная 32: Автоматизация ревью кода
-AI-ревьюер для PR с RAG и локальной LLM
+Лабораторная 32: Автоматизация ревью кода (с LLM)
+AI-ревьюер для PR с RAG и локальной LLM (TinyLlama)
 """
 
 import os
 import re
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Optional
 
 
 # ============================================================================
@@ -15,13 +15,10 @@ from typing import List, Dict, Tuple
 # ============================================================================
 
 def get_diff() -> str:
-    """Получает diff PR"""
     diff_file = "pr_diff.txt"
     if os.path.exists(diff_file):
         with open(diff_file, "r", encoding="utf-8") as f:
             return f.read()
-    
-    # Fallback: получить из git
     try:
         result = subprocess.run(
             ["git", "diff", "HEAD~1", "HEAD"],
@@ -33,13 +30,10 @@ def get_diff() -> str:
 
 
 def get_changed_files() -> List[str]:
-    """Получает список измененных файлов"""
     files_file = "changed_files.txt"
     if os.path.exists(files_file):
         with open(files_file, "r", encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()]
-    
-    # Fallback
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", "HEAD~1", "HEAD"],
@@ -51,7 +45,6 @@ def get_changed_files() -> List[str]:
 
 
 def parse_diff(diff: str) -> List[Dict]:
-    """Парсит diff на файлы с изменениями"""
     files = []
     current_file = None
     
@@ -59,7 +52,6 @@ def parse_diff(diff: str) -> List[Dict]:
         if line.startswith("diff --git"):
             if current_file:
                 files.append(current_file)
-            # Извлекаем имя файла
             match = re.search(r"b/(.+)", line)
             filename = match.group(1) if match else "unknown"
             current_file = {"file": filename, "additions": [], "deletions": []}
@@ -80,36 +72,28 @@ def parse_diff(diff: str) -> List[Dict]:
 # ============================================================================
 
 def check_bugs(code: str, filename: str) -> List[str]:
-    """Проверяет код на потенциальные баги"""
     bugs = []
     
-    # Проверка на except без типа
     if re.search(r'except\s*:', code):
         bugs.append("⚠️ `except:` без типа — скрывает все ошибки")
     
-    # Проверка на print (для production кода)
     if filename.endswith(".py") and "print(" in code:
         if "test" not in filename and "demo" not in filename:
             bugs.append("ℹ️ Найден `print()` — для логирования используй `logging`")
     
-    # Проверка на hardcoded passwords
     if re.search(r'(password|secret|token|api_key)\s*=\s*["\']', code, re.IGNORECASE):
         bugs.append("🔴 Возможен hardcoded секрет — используй переменные окружения")
     
-    # Проверка на TODO/FIXME
     todos = re.findall(r'TODO|FIXME|XXX', code)
     if todos:
         bugs.append(f"📝 Найдено {len(todos)} TODO/FIXME — не забыть")
     
-    # Проверка на SQL injection
     if re.search(r'execute\s*\(\s*["\'].*%s', code):
         bugs.append("🔴 Возможна SQL injection — используй параметризованные запросы")
     
-    # Проверка на eval/exec
     if re.search(r'\beval\s*\(|\bexec\s*\(', code):
         bugs.append("🔴 Использование eval/exec — опасно, лучше заменить")
     
-    # Проверка на длинные функции
     lines = code.split("\n")
     if len(lines) > 50:
         bugs.append(f"ℹ️ Функция/класс длиной {len(lines)} строк — рассмотри разбиение")
@@ -118,17 +102,14 @@ def check_bugs(code: str, filename: str) -> List[str]:
 
 
 def check_style(code: str, filename: str) -> List[str]:
-    """Проверяет стиль кода"""
     style = []
     
     if not filename.endswith(".py"):
         return style
     
-    # Проверка на type hints
     if "def " in code and "-> " not in code and "import" not in code[:100]:
         style.append("💡 Рассмотри использование type hints")
     
-    # Проверка на docstrings
     if "def " in code and '"""' not in code and "'''" not in code:
         style.append("💡 Добавь docstrings к функциям")
     
@@ -136,17 +117,14 @@ def check_style(code: str, filename: str) -> List[str]:
 
 
 def check_architecture(files: List[Dict]) -> List[str]:
-    """Проверяет архитектурные проблемы"""
     arch = []
     
-    # Проверка на смешивание ответственностей
     has_tests = any("test" in f["file"].lower() for f in files)
     has_impl = any(f["file"].endswith(".py") and "test" not in f["file"].lower() for f in files)
     
     if has_impl and not has_tests:
         arch.append("⚠️ Нет тестов для нового кода")
     
-    # Проверка на большие файлы
     for f in files:
         total_lines = len(f["additions"]) + len(f["deletions"])
         if total_lines > 300:
@@ -160,7 +138,6 @@ def check_architecture(files: List[Dict]) -> List[str]:
 # ============================================================================
 
 def load_docs() -> List[Dict]:
-    """Загружает документацию проекта"""
     docs = []
     docs_dir = Path("docs_lab21")
     if docs_dir.exists():
@@ -172,8 +149,6 @@ def load_docs() -> List[Dict]:
 
 
 def find_relevant_docs(code: str, docs: List[Dict], top_k: int = 2) -> List[Dict]:
-    """Находит релевантную документацию"""
-    # Простой keyword-based поиск
     keywords = set(re.findall(r'\b[a-z]{4,}\b', code.lower()))
     
     scored = []
@@ -188,10 +163,76 @@ def find_relevant_docs(code: str, docs: List[Dict], top_k: int = 2) -> List[Dict
 
 
 # ============================================================================
-# 4. Генерация ревью
+# 4. LLM: локальная модель для расширенного анализа
 # ============================================================================
 
-def generate_review(diff: str, files: List[Dict]) -> str:
+_llm_model = None
+
+def load_llm():
+    """Загружает локальную LLM (lazy loading)"""
+    global _llm_model
+    if _llm_model is not None:
+        return _llm_model
+    
+    try:
+        from ctransformers import AutoModelForCausalLM
+        print("📦 Загрузка локальной LLM (TinyLlama)...", flush=True)
+        _llm_model = AutoModelForCausalLM.from_pretrained(
+            "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF",
+            model_file="tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+            model_type="llama"
+        )
+        print("✅ LLM загружена", flush=True)
+        return _llm_model
+    except Exception as e:
+        print(f"⚠️ LLM недоступна: {e}", flush=True)
+        return None
+
+
+def ask_llm(prompt: str, max_tokens: int = 150) -> str:
+    """Запрашивает ответ у локальной LLM"""
+    model = load_llm()
+    if model is None:
+        return ""
+    
+    try:
+        response = model(prompt, max_new_tokens=max_tokens, temperature=0.3)
+        return response.strip()
+    except Exception as e:
+        return f"LLM error: {e}"
+
+
+def get_llm_explanation(bug: str, code_snippet: str) -> str:
+    """Получает объяснение бага от LLM"""
+    prompt = f"""Проблема в коде: {bug}
+
+Код:
+{code_snippet[:200]}
+
+Дай краткое объяснение (1-2 предложения) на русском:"""
+    
+    return ask_llm(prompt, max_tokens=80)
+
+
+def get_llm_summary(static_findings: Dict) -> str:
+    """Получает общее резюме от LLM"""
+    summary = f"Файлов: {static_findings['files_count']}, багов: {len(static_findings['bugs'])}, стиль: {len(static_findings['style'])}"
+    
+    prompt = f"""Ты — ревьюер кода. Дай краткий комментарий (1-2 предложения).
+
+Найдено: {summary}
+Файлы: {', '.join(static_findings['files'][:3])}
+
+Ответ:"""
+    
+    return ask_llm(prompt, max_tokens=100)
+
+
+# ============================================================================
+# 5. Генерация ревью
+# ============================================================================
+
+def generate_review(diff: str, files: List[Dict], use_llm: bool = True) -> str:
     """Генерирует текст ревью"""
     review = []
     review.append("## 🤖 AI Code Review\n")
@@ -200,12 +241,13 @@ def generate_review(diff: str, files: List[Dict]) -> str:
     review.append(f"**Строк удалено:** {sum(len(f['deletions']) for f in files)}\n")
     review.append("")
     
-    # Статический анализ
     all_bugs = []
     all_style = []
+    all_added_code = []
     
     for f in files:
         added_code = "\n".join(f["additions"])
+        all_added_code.append(added_code)
         bugs = check_bugs(added_code, f["file"])
         style = check_style(added_code, f["file"])
         
@@ -214,19 +256,23 @@ def generate_review(diff: str, files: List[Dict]) -> str:
         if style:
             all_style.extend([(f["file"], s) for s in style])
     
-    # Архитектура
     arch_issues = check_architecture(files)
     
-    # RAG: релевантная документация
-    all_added = "\n".join("\n".join(f["additions"]) for f in files)
+    all_added = "\n".join(all_added_code)
     docs = load_docs()
     relevant_docs = find_relevant_docs(all_added, docs)
     
-    # Вывод
     if all_bugs:
         review.append("### 🐛 Потенциальные баги\n")
         for file, bug in all_bugs:
             review.append(f"- **{file}**: {bug}")
+            
+            # LLM объяснение для критических багов
+            if use_llm and ("🔴" in bug or "SQL injection" in bug):
+                snippet = next((c for c in all_added_code if file.split('/')[-1] in c or len(c) > 0), "")
+                explanation = get_llm_explanation(bug, snippet)
+                if explanation and "error" not in explanation.lower():
+                    review.append(f"  > 💡 _{explanation[:200]}_")
         review.append("")
     
     if arch_issues:
@@ -247,7 +293,20 @@ def generate_review(diff: str, files: List[Dict]) -> str:
             review.append(f"- `{doc['source']}`")
         review.append("")
     
-    # Рекомендации
+    # LLM резюме
+    if use_llm and (all_bugs or arch_issues or all_style):
+        review.append("### 🎯 Общее резюме (LLM)\n")
+        static_findings = {
+            "files_count": len(files),
+            "bugs": all_bugs,
+            "style": all_style,
+            "files": [f["file"] for f in files]
+        }
+        summary = get_llm_summary(static_findings)
+        if summary and "error" not in summary.lower() and len(summary) > 10:
+            review.append(f"_{summary}_")
+            review.append("")
+    
     review.append("### 💡 Рекомендации\n")
     review.append("- ✅ Проверь что тесты покрывают новый код")
     review.append("- ✅ Запусти линтер (flake8/pylint/ruff)")
@@ -256,43 +315,34 @@ def generate_review(diff: str, files: List[Dict]) -> str:
     review.append("")
     
     review.append("---")
-    review.append("*Сгенерировано AI-ревьюером (ctransformers + RAG)*")
+    review.append("*Сгенерировано AI-ревьюером (статический анализ + RAG + LLM)*")
     
     return "\n".join(review)
 
 
 # ============================================================================
-# 5. Главная функция
+# 6. Главная функция
 # ============================================================================
 
 def main():
     print("=" * 60)
-    print("AI Code Review")
+    print("AI Code Review (с LLM)")
     print("=" * 60)
     
-    # Получаем diff
-    print("\n📥 Получение diff...")
     diff = get_diff()
     files = get_changed_files()
     
-    print(f"   Изменено файлов: {len(files)}")
-    for f in files[:10]:
-        print(f"   - {f}")
+    print(f"\n📥 Diff: {len(diff)} символов")
+    print(f"📁 Изменено файлов: {len(files)}")
     
-    # Парсим diff
-    print("\n🔍 Парсинг diff...")
     parsed = parse_diff(diff)
-    print(f"   Файлов с изменениями: {len(parsed)}")
     
-    # Генерируем ревью
     print("\n🤖 Генерация ревью...")
-    review = generate_review(diff, parsed)
+    review = generate_review(diff, parsed, use_llm=True)
     
-    # Сохраняем
     with open("review_output.md", "w", encoding="utf-8") as f:
         f.write(review)
     
-    # Выводим
     print("\n" + "=" * 60)
     print("РЕЗУЛЬТАТ РЕВЬЮ")
     print("=" * 60)

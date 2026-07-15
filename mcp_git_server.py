@@ -1,37 +1,22 @@
-"""
-MCP-сервер для git-операций
-Предоставляет инструменты: git_branch, list_files, git_diff
-"""
-
 import asyncio
-import subprocess
 import os
+import sys
 from pathlib import Path
 from mcp.server import Server
-from mcp.types import Tool
+from mcp.types import Tool, TextContent
 from mcp.server.stdio import stdio_server
 
 server = Server("git-server")
 
 WORK_DIR = os.getenv("WORK_DIR", ".")
 
-
-def run_git(cmd: str) -> str:
-    """Выполняет git-команду и возвращает результат"""
-    try:
-        result = subprocess.run(
-            f"git {cmd}",
-            shell=True,
-            cwd=WORK_DIR,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-        return f"Error: {result.stderr.strip()}"
-    except Exception as e:
-        return f"Error: {str(e)}"
+# Use GitPython to avoid subprocess issues on Windows
+import git
+try:
+    repo = git.Repo(WORK_DIR)
+except Exception as e:
+    repo = None
+    print(f"GitPython init error: {e}", file=sys.stderr)
 
 
 @server.list_tools()
@@ -75,39 +60,50 @@ async def handle_list_tools():
 
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: dict):
-    if name == "git_branch":
-        current = run_git("rev-parse --abbrev-ref HEAD")
-        all_branches = run_git("branch -a")
-        return [{
-            "type": "text",
-            "text": f"Текущая ветка: {current}\n\nВсе ветки:\n{all_branches}"
-        }]
+    try:
+        if name == "git_branch":
+            if repo and not repo.bare:
+                current = repo.active_branch.name
+                all_branches = [b.name for b in repo.branches]
+                text = f"Текущая ветка: {current}\n\nВсе ветки:\n" + "\n".join(all_branches)
+                return [TextContent(type="text", text=text)]
+            return [TextContent(type="text", text="Error: not a git repo")]
 
-    elif name == "list_files":
-        ext = arguments.get("extension", "")
-        try:
-            files = []
-            for path in Path(WORK_DIR).rglob(f"*{ext}"):
-                if path.is_file() and "__pycache__" not in str(path) and ".git" not in str(path):
-                    files.append(str(path.relative_to(WORK_DIR)))
-            file_list = "\n".join(sorted(files)[:50])
-            return [{
-                "type": "text",
-                "text": f"Файлы ({ext or 'все'}):\n{file_list}\n\nВсего: {len(files)}"
-            }]
-        except Exception as e:
-            return [{"type": "text", "text": f"Error: {str(e)}"}]
+        elif name == "list_files":
+            ext = arguments.get("extension", "")
+            try:
+                files = []
+                for path in Path(WORK_DIR).rglob(f"*{ext}"):
+                    if path.is_file() and "__pycache__" not in str(path) and ".git" not in str(path):
+                        files.append(str(path.relative_to(WORK_DIR)))
+                file_list = "\n".join(sorted(files)[:50])
+                text = f"Файлы ({ext or 'все'}):\n{file_list}\n\nВсего: {len(files)}"
+                return [TextContent(type="text", text=text)]
+            except Exception as e:
+                return [TextContent(type="text", text=f"Error: {str(e)}")]
 
-    elif name == "git_diff":
-        commits = arguments.get("commits", 1)
-        diff = run_git(f"diff HEAD~{commits}..HEAD")
-        log = run_git(f"log --oneline -{commits}")
-        return [{
-            "type": "text",
-            "text": f"Последние {commits} коммитов:\n{log}\n\nDiff:\n{diff[:2000]}"
-        }]
+        elif name == "git_diff":
+            commits = arguments.get("commits", 1)
+            if repo and not repo.bare:
+                try:
+                    log = list(repo.iter_commits(max_count=commits))
+                    log_text = "\n".join(f"{c.hexsha[:7]} {c.summary}" for c in log)
 
-    return [{"type": "text", "text": f"Unknown tool: {name}"}]
+                    # Get diff between HEAD and HEAD~N
+                    if len(log) >= commits:
+                        diff = repo.git.diff(f"HEAD~{commits}..HEAD")
+                    else:
+                        diff = "(not enough commits for diff)"
+
+                    text = f"Последние {commits} коммитов:\n{log_text}\n\nDiff:\n{diff[:2000]}"
+                    return [TextContent(type="text", text=text)]
+                except Exception as e:
+                    return [TextContent(type="text", text=f"Error: {e}")]
+            return [TextContent(type="text", text="Error: not a git repo")]
+
+        return [TextContent(type="text", text=f"Unknown tool: {name}")]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
 
 
 async def main():

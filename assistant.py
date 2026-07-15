@@ -6,8 +6,7 @@ RAG по README + docs/ + MCP для git + /help команда
 import asyncio
 import os
 import re
-import subprocess
-import json
+import sys
 from pathlib import Path
 from typing import List, Dict, Tuple
 
@@ -19,12 +18,10 @@ def load_docs() -> List[Dict]:
     """Загружает README и docs/"""
     docs = []
     
-    # README
     if os.path.exists("README.md"):
         with open("README.md", "r", encoding="utf-8") as f:
             docs.append({"source": "README.md", "content": f.read()})
     
-    # docs_lab21/
     docs_dir = Path("docs_lab21")
     if docs_dir.exists():
         for md_file in docs_dir.rglob("*.md"):
@@ -37,7 +34,6 @@ def load_docs() -> List[Dict]:
 
 
 def chunk_text(text: str, chunk_size: int = 500) -> List[str]:
-    """Разбивает текст на чанки"""
     words = text.split()
     chunks = []
     for i in range(0, len(words), chunk_size):
@@ -56,14 +52,12 @@ def build_index(docs: List[Dict]) -> Dict:
         for chunk in chunk_text(doc["content"]):
             chunks.append({"source": doc["source"], "content": chunk})
     
-    # Словарь
     vocab = {}
     for chunk in chunks:
         for token in tokenize(chunk["content"]):
             if token not in vocab:
                 vocab[token] = len(vocab)
     
-    # TF-IDF матрица
     n_chunks = len(chunks)
     n_words = len(vocab)
     matrix = [[0.0] * n_words for _ in range(n_chunks)]
@@ -72,21 +66,17 @@ def build_index(docs: List[Dict]) -> Dict:
         tokens = tokenize(chunk["content"])
         if not tokens:
             continue
-        # TF
         for token in tokens:
             if token in vocab:
                 matrix[i][vocab[token]] += 1
-        # Нормализация
         for j in range(n_words):
             matrix[i][j] /= len(tokens)
     
-    # IDF
     idf = {}
     for word, idx in vocab.items():
         df = sum(1 for i in range(n_chunks) if matrix[i][idx] > 0)
         idf[word] = (n_chunks + 1) / (df + 1)
     
-    # Применяем IDF
     for i in range(n_chunks):
         for j in range(n_words):
             word = list(vocab.keys())[list(vocab.values()).index(j)]
@@ -106,7 +96,6 @@ def retrieve(query: str, index: Dict, top_k: int = 2) -> List[Tuple[Dict, float]
     if not query_tokens:
         return []
     
-    # Вектор запроса
     n_words = len(vocab)
     query_vec = [0.0] * n_words
     for token in query_tokens:
@@ -118,7 +107,6 @@ def retrieve(query: str, index: Dict, top_k: int = 2) -> List[Tuple[Dict, float]
             query_vec[j] *= idf[word]
         query_vec[j] /= max(len(query_tokens), 1)
     
-    # Косинусное сходство
     def cosine(a, b):
         dot = sum(x*y for x, y in zip(a, b))
         na = sum(x*x for x in a) ** 0.5
@@ -131,42 +119,53 @@ def retrieve(query: str, index: Dict, top_k: int = 2) -> List[Tuple[Dict, float]
 
 
 # ============================================================================
-# 2. MCP: git-инструменты
+# 2. MCP клиент для вызова git-инструментов
 # ============================================================================
 
-def git_branch() -> str:
-    """Получает текущую ветку"""
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True, text=True, timeout=5
-        )
-        branch = result.stdout.strip()
-        
-        # Список всех веток
-        result2 = subprocess.run(
-            ["git", "branch"],
-            capture_output=True, text=True, timeout=5
-        )
-        all_branches = result2.stdout.strip()
-        
-        return f"Текущая ветка: {branch}\n\nВсе ветки:\n{all_branches}"
-    except Exception as e:
-        return f"Error: {e}"
+_mcp_session = None
+_mcp_streams = None
+
+async def start_mcp():
+    """Запускает MCP-сервер и возвращает сессию"""
+    global _mcp_session, _mcp_streams
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["mcp_git_server.py"],
+        env={**os.environ, "WORK_DIR": "."}
+    )
+    
+    _mcp_streams = stdio_client(params)
+    read, write = await _mcp_streams.__aenter__()
+    _mcp_session = ClientSession(read, write)
+    await _mcp_session.__aenter__()
+    await _mcp_session.initialize()
+    return _mcp_session
 
 
-def list_files(ext: str = "") -> str:
-    """Список файлов"""
-    try:
-        files = []
-        for path in Path(".").rglob(f"*{ext}"):
-            if path.is_file() and "__pycache__" not in str(path) and ".git" not in str(path):
-                files.append(str(path.relative_to(".")))
-        
-        file_list = "\n".join(sorted(files)[:30])
-        return f"Файлы ({ext or 'все'}):\n{file_list}\n\nВсего: {len(files)}"
-    except Exception as e:
-        return f"Error: {e}"
+async def stop_mcp():
+    """Останавливает MCP-сессию"""
+    global _mcp_session, _mcp_streams
+    if _mcp_session:
+        await _mcp_session.__aexit__(None, None, None)
+        _mcp_session = None
+    if _mcp_streams:
+        await _mcp_streams.__aexit__(None, None, None)
+        _mcp_streams = None
+
+
+async def call_mcp(tool_name: str, arguments: dict = None) -> str:
+    """Вызывает MCP-инструмент и возвращает текст результата"""
+    if arguments is None:
+        arguments = {}
+    if _mcp_session is None:
+        await start_mcp()
+    result = await _mcp_session.call_tool(tool_name, arguments)
+    if result.content:
+        return result.content[0].text
+    return ""
 
 
 # ============================================================================
@@ -191,19 +190,23 @@ def find_project_structure() -> str:
     return "\n".join(lines)
 
 
-def answer_question(query: str, index: Dict) -> str:
-    """Отвечает на вопрос используя RAG + контекст"""
+async def answer_question(query: str, index: Dict) -> str:
+    """Отвечает на вопрос используя RAG + MCP"""
     query_lower = query.lower()
     
-    # Проверяем git-команды
     if "ветк" in query_lower or "branch" in query_lower:
-        return f"📂 {git_branch()}"
+        result = await call_mcp("git_branch")
+        return f"📂 {result}"
     
-    # Проверяем структуру проекта
     if "структур" in query_lower or "файл" in query_lower or "проект" in query_lower:
-        return f"📁 {find_project_structure()}\n\n{list_files('.py')}"
+        structure = find_project_structure()
+        files = await call_mcp("list_files", {"extension": ".py"})
+        return f"📁 {structure}\n\n{files}"
     
-    # RAG: ищем в документации
+    if "diff" in query_lower or "изменен" in query_lower or "коммит" in query_lower:
+        result = await call_mcp("git_diff", {"commits": 3})
+        return f"📝 {result[:1000]}"
+    
     results = retrieve(query, index, top_k=2)
     
     if results and results[0][1] > 0.01:
@@ -217,38 +220,37 @@ def answer_question(query: str, index: Dict) -> str:
     return f"❓ Не нашел ответа. Попробуй спросить о:\n- ветке git\n- структуре проекта\n- документации (Python, Docker, FastAPI, и т.д.)"
 
 
-def main():
-    """Главный цикл ассистента"""
+async def main():
     print("=" * 60)
     print("Ассистент разработчика (RAG + MCP)")
     print("=" * 60)
     
-    # Загружаем документацию
     print("\n📚 Загрузка документации...")
     docs = load_docs()
     print(f"   Загружено документов: {len(docs)}")
     
-    # Строим индекс
     print("🔨 Построение RAG-индекса...")
     index = build_index(docs)
     print(f"   Чанков: {len(index['chunks'])}")
     print(f"   Словарь: {len(index['vocab'])} слов")
     
-    # Проверяем git
-    print("\n📂 Git статус:")
-    print(f"   {git_branch()}")
+    print("\n📡 Запуск MCP-сервера...")
+    await start_mcp()
+    branch_result = await call_mcp("git_branch")
+    print(f"   {branch_result.split(chr(10))[0]}")
     
     print("\n" + "=" * 60)
     print("Команды:")
     print("  /help   - справка")
     print("  /git    - текущая ветка")
     print("  /files  - список файлов")
+    print("  /diff   - последние изменения")
     print("  /exit   - выход")
     print("  <вопрос> - задать вопрос о проекте")
     print("=" * 60 + "\n")
     
-    while True:
-        try:
+    try:
+        while True:
             user_input = input("Вы: ").strip()
             
             if not user_input:
@@ -261,8 +263,9 @@ def main():
             if user_input.lower() == "/help":
                 print("\n📖 Доступные команды:")
                 print("  /help   - эта справка")
-                print("  /git    - показать git-ветку")
-                print("  /files  - список файлов проекта")
+                print("  /git    - показать git-ветку (через MCP)")
+                print("  /files  - список файлов проекта (через MCP)")
+                print("  /diff   - последние изменения (через MCP)")
                 print("  <вопрос> - задать вопрос (RAG по документации)")
                 print("\nПримеры вопросов:")
                 print("  - Какая сейчас ветка?")
@@ -273,23 +276,26 @@ def main():
                 continue
             
             if user_input.lower() == "/git":
-                print(f"\n{answer_question('git branch', index)}\n")
+                print(f"\n{await answer_question('git branch', index)}\n")
                 continue
             
             if user_input.lower() == "/files":
-                print(f"\n{answer_question('структура проекта файлы', index)}\n")
+                print(f"\n{await answer_question('структура проекта файлы', index)}\n")
                 continue
             
-            # Вопрос о проекте
-            print(f"\n{answer_question(user_input, index)}\n")
-        
-        except KeyboardInterrupt:
-            print("\n\nДо свидания!")
-            break
-        except EOFError:
-            print("\n\nДо свидания!")
-            break
+            if user_input.lower() == "/diff":
+                print(f"\n{await answer_question('diff изменения', index)}\n")
+                continue
+            
+            print(f"\n{await answer_question(user_input, index)}\n")
+    
+    except KeyboardInterrupt:
+        print("\n\nДо свидания!")
+    except EOFError:
+        print("\n\nДо свидания!")
+    finally:
+        await stop_mcp()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
