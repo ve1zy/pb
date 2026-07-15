@@ -1,0 +1,59 @@
+[
+  {
+    "id": "T-001",
+    "user": "ivanov@example.com",
+    "user_name": "Иван Иванов",
+    "title": "Не работает авторизация",
+    "status": "open",
+    "priority": "high",
+    "created": "2026-07-08",
+    "category": "auth",
+    "messages": [
+      {"from": "user", "text": "Не могу войти в аккаунт, пишет 'Неверный пароль'", "time": "2026-07-08 10:30"},
+      {"from": "support", "text": "Проверьте раскладку клавиатуры и Caps Lock", "time": "2026-07-08 11:00"},
+      {"from": "user", "text": "Не помогает, пробовал несколько раз", "time": "2026-07-08 11:15"}
+    ]
+  },
+  {
+    "id": "T-002",
+    "user": "petrov@example.com",
+    "user_name": "Пётр Петров",
+    "title": "Не приходит email для подтверждения",
+    "status": "open",
+    "priority": "medium",
+    "created": "2026-07-09",
+    "category": "auth",
+    "messages": [
+      {"from": "user", "text": "Зарегистрировался, но email не приходит", "time": "2026-07-09 14:20"},
+      {"from": "support", "text": "Проверьте папку Спам", "time": "2026-07-09 14:25"},
+      {"from": "user", "text": "Там тоже нет", "time": "2026-07-09 14:30"}
+    ]
+  },
+  {
+    "id": "T-003",
+    "user": "sidorov@example.com",
+    "user_name": "Сидор Сидоров",
+    "title": "Ошибка 429 при работе с API",
+    "status": "open",
+    "priority": "low",
+    "created": "2026-07-10",
+    "category": "api",
+    "messages": [
+      {"from": "user", "text": "Получаю 429 Too Many Requests каждые 5 минут", "time": "2026-07-10 09:00"}
+    ]
+  },
+  {
+    "id": "T-004",
+    "user": "ivanov@example.com",
+    "user_name": "Иван Иванов",
+    "title": "Медленно работает дашборд",
+    "status": "in_progress",
+    "priority": "medium",
+    "created": "2026-07-05",
+    "category": "performance",
+    "messages": [
+      {"from": "user", "text": "Дашборд грузится по 30 секунд", "time": "2026-07-05 16:00"},
+      {"from": "support", "text": "Проверяем нагрузку на серверы", "time": "2026-07-06 09:00"}
+    ]
+  }
+]
