@@ -1,17 +1,159 @@
 """
-Лабораторная 34: Ассистент для работы с файлами проекта
+Лабораторная 34: Ассистент для работы с файлами проекта (с LLM-агентом)
 MCP-инструменты: чтение, поиск, анализ, создание, изменение
++ LLM-агент для принятия решений
 """
 
 import asyncio
 import os
 import re
 import sys
+import json
 from pathlib import Path
 
 
 # ============================================================================
-# 1. MCP клиент
+# 1. LLM: локальная модель для AI-агента
+# ============================================================================
+
+_llm_model = None
+
+def load_llm():
+    global _llm_model
+    if _llm_model is not None:
+        return _llm_model
+    try:
+        from ctransformers import AutoModelForCausalLM
+        print("📦 Загрузка LLM (TinyLlama)...", flush=True)
+        _llm_model = AutoModelForCausalLM.from_pretrained(
+            "TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF",
+            model_file="tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+            model_type="llama"
+        )
+        print("✅ LLM загружена", flush=True)
+        return _llm_model
+    except Exception as e:
+        print(f"⚠️ LLM недоступна: {e}", flush=True)
+        return None
+
+
+def ask_llm(prompt: str, max_tokens: int = 200) -> str:
+    model = load_llm()
+    if model is None:
+        return ""
+    try:
+        return model(prompt, max_new_tokens=max_tokens, temperature=0.2).strip()
+    except Exception as e:
+        return f""
+
+
+# ============================================================================
+# 2. AI-агент: выбирает инструменты по задаче
+# ============================================================================
+
+AVAILABLE_TOOLS = [
+    {"name": "read_file", "args": "path", "desc": "прочитать файл"},
+    {"name": "list_files", "args": "extension, directory", "desc": "список файлов"},
+    {"name": "search_in_files", "args": "pattern, file_pattern, directory", "desc": "поиск regex"},
+    {"name": "find_usages", "args": "name, file_pattern", "desc": "найти использования"},
+    {"name": "create_file", "args": "path, content", "desc": "создать файл"},
+    {"name": "update_file", "args": "path, old_text, new_text", "desc": "заменить текст"},
+    {"name": "check_invariants", "args": "file_pattern, rules", "desc": "проверить правила"},
+    {"name": "get_file_info", "args": "path", "desc": "инфо о файле"},
+    {"name": "generate_diff", "args": "old, new, old_label, new_label", "desc": "создать diff"},
+    {"name": "git_log", "args": "n", "desc": "история коммитов"},
+]
+
+
+TOOLS_DESC = "\n".join(
+    f"- {t['name']}({t['args']}): {t['desc']}"
+    for t in AVAILABLE_TOOLS
+)
+
+
+def agent_plan(task: str) -> dict:
+    """LLM решает какой инструмент вызвать"""
+    prompt = f"""Ты — AI-агент для работы с файлами. У тебя есть инструменты:
+
+{TOOLS_DESC}
+
+Задача пользователя: {task}
+
+Выбери ОДИН наиболее подходящий инструмент. Ответь СТРОГО в формате JSON:
+{{"tool": "имя", "args": {{"param": "value"}}}}
+
+Если задача про поиск использований — используй find_usages.
+Если про проверку файлов — check_invariants.
+Если про создание changelog — сначала git_log, потом create_file.
+
+JSON:"""
+    
+    resp = ask_llm(prompt, max_tokens=100)
+    
+    # Парсим JSON из ответа LLM
+    try:
+        # Ищем JSON в ответе
+        match = re.search(r'\{[^{}]*"tool"[^{}]*\}', resp)
+        if match:
+            return json.loads(match.group(0))
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    
+    # Fallback: попробуем весь ответ
+    try:
+        return json.loads(resp)
+    except:
+        pass
+    
+    return {"tool": "search_in_files", "args": {"pattern": task}}
+
+
+def agent_interpret(task: str, tool_name: str, tool_result: str) -> str:
+    """LLM интерпретирует результат и формулирует ответ"""
+    prompt = f"""Ты — AI-ассистент. Пользователь задал вопрос и ты вызвал инструмент.
+
+Вопрос: {task}
+Инструмент: {tool_name}
+Результат: {tool_result[:800]}
+
+Дай краткий понятный ответ пользователю (2-3 предложения):"""
+    
+    return ask_llm(prompt, max_tokens=150)
+
+
+async def ai_agent(task: str) -> str:
+    """AI-агент: планирует → вызывает → интерпретирует"""
+    if load_llm() is None:
+        return "❌ LLM недоступна. Используйте команды (/find, /search, /check)"
+    
+    # Шаг 1: план
+    plan = agent_plan(task)
+    tool = plan.get("tool", "")
+    args = plan.get("args", {})
+    
+    if not tool or tool not in [t["name"] for t in AVAILABLE_TOOLS]:
+        # Fallback — поиск
+        tool = "search_in_files"
+        args = {"pattern": task, "file_pattern": "*.py"}
+    
+    # Шаг 2: вызов
+    try:
+        result = await call_mcp(tool, args)
+    except Exception as e:
+        result = f"❌ Ошибка: {e}"
+    
+    # Шаг 3: интерпретация
+    interpretation = agent_interpret(task, tool, result)
+    
+    response = f"🤖 **План агента:** `{tool}({args})`\n\n"
+    response += f"📊 **Результат:**\n{result[:1000]}\n\n"
+    if interpretation and len(interpretation) > 10 and "ошибк" not in interpretation.lower()[:20]:
+        response += f"💬 **Ответ ассистента:**\n{interpretation}"
+    return response
+
+
+# ============================================================================
+# 3. MCP клиент
 # ============================================================================
 
 _mcp_session = None
@@ -182,6 +324,11 @@ async def main():
     print("Команды (сценарии):")
     for cmd, (desc, _, args) in SCENARIOS.items():
         print(f"  {cmd} {args:<30} - {desc}")
+    print("=" * 60)
+    print("\n💡 Можно писать задачу на естественном языке — AI-агент сам выберет инструмент")
+    print("   Примеры: 'найди где используется ctransformers'")
+    print("            'проверь все файлы на docstring'")
+    print("            'сгенерируй changelog'")
     print("=" * 60 + "\n")
     
     try:
@@ -196,13 +343,11 @@ async def main():
                 break
             
             if user_input.lower() == "/help":
-                print("\n📋 Доступные сценарии:")
+                print("\n📋 Доступные команды:")
                 for cmd, (desc, _, args) in SCENARIOS.items():
                     print(f"  {cmd} {args:<30} - {desc}")
-                print("  Примеры:")
-                print("    /find ctransformers")
-                print("    /search 'def.*llm'")
-                print("    /adr 'Use local LLM'|'Мы выбрали ctransformers потому что...'")
+                print("\n🤖 AI-агент (по умолчанию):")
+                print("  Пишите задачу на естественном языке — LLM выберет инструмент")
                 print()
                 continue
             
@@ -223,9 +368,10 @@ async def main():
                     result = await func(args)
                 print(f"\n{result}\n")
             else:
-                # Свободный запрос — поиск
-                result = await scenario_search_code(user_input)
-                print(f"\n{result}\n")
+                # AI-агент режим
+                print(f"\n🤖 AI-агент обрабатывает: '{user_input}'\n")
+                result = await ai_agent(user_input)
+                print(f"{result}\n")
     
     except KeyboardInterrupt:
         print("\n\nДо свидания!")
