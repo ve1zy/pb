@@ -62,6 +62,9 @@ def get_all_tags() -> str:
 @mcp.tool()
 def create_github_release(tag: str, title: str, notes: str, draft: bool = False) -> str:
     """Create a GitHub release using gh CLI"""
+    import shutil
+    if not shutil.which("gh"):
+        return f"DRY RUN: Would create release {tag}\nTitle: {title}\nNotes:\n{notes}"
     cmd = ["gh", "release", "create", tag, "--title", title, "--notes", notes]
     if draft:
         cmd.append("--draft")
