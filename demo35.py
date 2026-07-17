@@ -1,5 +1,4 @@
-import asyncio
-from release_assistant import run_release_pipeline
+from release_assistant_simple import run_release_pipeline
 
 print("=" * 60)
 print("  AI Release Assistant Demo")
@@ -12,16 +11,10 @@ print("3. AI analyzes commits and generates changelog")
 print("4. AI suggests next version (semver)")
 print("5. Show release preview (dry run)")
 print()
-print("Press Enter to start...")
-input()
 
-result = asyncio.run(run_release_pipeline(dry_run=True))
+result = run_release_pipeline()
 
-print("\n" + "=" * 60)
-print("  Summary")
-print("=" * 60)
-print(f"Version: {result['version']}")
-print(f"Previous tag: {result['tag'] or 'none'}")
-print(f"\nChangelog:\n{result['changelog']}")
-print("\nTo create actual release, run:")
-print("  python -c \"import asyncio; from release_assistant import run_release_pipeline; asyncio.run(run_release_pipeline(dry_run=False))\"")
+print("\nSummary:")
+print(f"  Version: {result['version']}")
+print(f"  Previous tag: {result['tag']}")
+print(f"  Commits analyzed: {len(result['commits'])}")
